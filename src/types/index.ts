@@ -27,3 +27,8 @@ export interface UsersVariables {
   offset?: number;
   limit?: number;
 }
+export interface PaginatedResponse {
+  users: User[];
+  hasMore: boolean;
+  totalCount: number;
+}

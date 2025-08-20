@@ -1,172 +1,85 @@
 import React, { useState, useCallback, useEffect } from "react";
-import styled from "styled-components";
 import { Filters, User } from "../types";
+import { INITIAL_FILTERS, PAGINATION_CONSTANTS } from "../constants";
+import { mockGraphQLClient } from "../services/mockClient";
 import FiltersPanel from "../components/FiltersPanel";
-import UsersTable from "../components/UsersTable";
-
-const MOCK_COUNTRIES = [
-  "USA",
-  "Canada",
-  "UK",
-  "Germany",
-  "France",
-  "Japan",
-  "Australia",
-  "Brazil",
-];
-
-const generateMockUsers = (
-  offset: number = 0,
-  limit: number = 20,
-  filters: Filters
-): User[] => {
-  const users: User[] = [];
-  const names = [
-    "John",
-    "Jane",
-    "Alice",
-    "Bob",
-    "Charlie",
-    "Diana",
-    "Eve",
-    "Frank",
-    "Grace",
-    "Henry",
-  ];
-  const domains = [
-    "gmail.com",
-    "yahoo.com",
-    "hotmail.com",
-    "outlook.com",
-    "company.com",
-  ];
-  let count = 0;
-  let id = offset;
-  while (count < limit && id < 1000) {
-    const name =
-      names[id % names.length] + ` ${Math.floor(id / names.length) + 1}`;
-    const email = `${name.toLowerCase().replace(" ", ".")}@${
-      domains[id % domains.length]
-    }`;
-    const country = MOCK_COUNTRIES[id % MOCK_COUNTRIES.length];
-    const registeredAt = new Date(2020 + (id % 4), id % 12, (id % 28) + 1)
-      .toISOString()
-      .split("T")[0];
-    const user = { id: id.toString(), name, email, country, registeredAt };
-    let matches = true;
-    if (
-      filters.name &&
-      !user.name.toLowerCase().includes(filters.name.toLowerCase())
-    )
-      matches = false;
-    if (
-      filters.email &&
-      !user.email.toLowerCase().includes(filters.email.toLowerCase())
-    )
-      matches = false;
-    if (filters.country.length > 0 && !filters.country.includes(user.country))
-      matches = false;
-    if (filters.registeredFrom && user.registeredAt < filters.registeredFrom)
-      matches = false;
-    if (filters.registeredTo && user.registeredAt > filters.registeredTo)
-      matches = false;
-    if (matches) {
-      users.push(user);
-      count++;
-    }
-    id++;
-  }
-  return users;
-};
-
-const mockGraphQLClient = {
-  query: async (
-    filters: Filters,
-    offset: number = 0,
-    limit: number = 20
-  ): Promise<{ users: User[]; hasMore: boolean }> => {
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    const users = generateMockUsers(offset, limit, filters);
-    const hasMore = users.length === limit;
-    return { users, hasMore };
-  },
-};
+import UsersTable from "../components//UsersTable";
+import * as S from "./UsersCatalog.styles";
 
 const UsersCatalog: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
-  const [filters, setFilters] = useState<Filters>({
-    name: "",
-    email: "",
-    country: [],
-    registeredFrom: "",
-    registeredTo: "",
-  });
+  const [filters, setFilters] = useState<Filters>(INITIAL_FILTERS);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState<boolean>(true);
-  const [offset, setOffset] = useState<number>(0);
+  const [currentOffset, setCurrentOffset] = useState<number>(0);
 
   const loadUsers = useCallback(
-    async (newFilters?: Filters, reset = false) => {
+    async (searchFilters: Filters, reset: boolean = false) => {
       if (loading) return;
+
       setLoading(true);
       setError(null);
-      const currentFilters = newFilters || filters;
-      const currentOffset = reset ? 0 : offset;
+
+      const offset = reset ? 0 : currentOffset;
+
       try {
         const result = await mockGraphQLClient.query(
-          currentFilters,
-          currentOffset
+          searchFilters,
+          offset,
+          PAGINATION_CONSTANTS.DEFAULT_LIMIT
         );
+
         if (reset) {
           setUsers(result.users);
+          setCurrentOffset(result.users.length);
         } else {
-          setUsers((prev) => [...prev, ...result.users]);
+          setUsers((prevUsers) => [...prevUsers, ...result.users]);
+          setCurrentOffset(offset + result.users.length);
         }
-        setOffset(currentOffset + result.users.length);
+
         setHasMore(result.hasMore);
       } catch (err) {
         setError("Произошла ошибка при загрузке данных");
+        console.error("Load users error:", err);
       } finally {
         setLoading(false);
       }
     },
-    [filters, offset, loading]
+    [loading, currentOffset]
   );
 
   useEffect(() => {
-    loadUsers(filters, true);
+    loadUsers(INITIAL_FILTERS, true);
   }, []);
 
-  const handleFiltersChange = (newFilters: Filters) => {
-    setFilters(newFilters);
-    loadUsers(newFilters, true);
-  };
+  const handleFiltersChange = useCallback(
+    (newFilters: Filters) => {
+      setFilters(newFilters);
+      setCurrentOffset(0);
+      loadUsers(newFilters, true);
+    },
+    [loadUsers]
+  );
 
-  const handleReset = () => {
-    const resetFilters: Filters = {
-      name: "",
-      email: "",
-      country: [],
-      registeredFrom: "",
-      registeredTo: "",
-    };
-    setFilters(resetFilters);
-    loadUsers(resetFilters, true);
-  };
+  const handleReset = useCallback(() => {
+    setFilters(INITIAL_FILTERS);
+    setCurrentOffset(0);
+    loadUsers(INITIAL_FILTERS, true);
+  }, [loadUsers]);
 
-  const handleLoadMore = () => {
+  const handleLoadMore = useCallback(() => {
     if (hasMore && !loading) {
-      loadUsers();
+      loadUsers(filters, false);
     }
-  };
+  }, [filters, hasMore, loading, loadUsers]);
 
   return (
-    <PageContainer>
-      <ContentWrapper>
-        <Header>
-          <Title>Каталог пользователей</Title>
-        </Header>
+    <S.PageContainer>
+      <S.ContentWrapper>
+        <S.Header>
+          <S.Title>Каталог пользователей</S.Title>
+        </S.Header>
 
         <FiltersPanel
           filters={filters}
@@ -179,52 +92,13 @@ const UsersCatalog: React.FC = () => {
           loading={loading}
           error={error}
           onLoadMore={handleLoadMore}
+          hasMore={hasMore}
         />
 
-        <FooterText>
-          Показано пользователей: {users.length}
-          {hasMore && !loading && " (прокрутите для загрузки еще)"}
-        </FooterText>
-      </ContentWrapper>
-    </PageContainer>
+        <S.FooterText>Показано пользователей: {users.length}</S.FooterText>
+      </S.ContentWrapper>
+    </S.PageContainer>
   );
 };
 
 export default UsersCatalog;
-
-const PageContainer = styled.div`
-  min-height: 100vh;
-  background-color: #f9fafb;
-  padding: 2rem 0;
-`;
-
-const ContentWrapper = styled.div`
-  max-width: 80rem;
-  margin: 0 auto;
-  padding: 0 1rem;
-
-  @media (min-width: 640px) {
-    padding: 0 1.5rem;
-  }
-
-  @media (min-width: 1024px) {
-    padding: 0 2rem;
-  }
-`;
-
-const Header = styled.div`
-  margin-bottom: 2rem;
-`;
-
-const Title = styled.h1`
-  font-size: 1.875rem;
-  font-weight: 700;
-  color: #111827;
-`;
-
-const FooterText = styled.div`
-  margin-top: 1rem;
-  text-align: center;
-  font-size: 0.875rem;
-  color: #6b7280;
-`;

@@ -1,272 +1,175 @@
-import styled from "styled-components";
+import React, { useCallback, useState, useEffect } from "react";
 import { Search, Calendar, X, Filter } from "lucide-react";
 import { Filters } from "../types";
+import { MOCK_COUNTRIES, UI_CONSTANTS } from "../constants";
+import { debounce } from "../utils/debounce";
+import { validateFilters } from "../utils/validation";
+import * as S from "./filterPanel.styled";
 
 interface FiltersPanelProps {
   filters: Filters;
   onFiltersChange: (filters: Filters) => void;
   onReset: () => void;
 }
-const MOCK_COUNTRIES = [
-  "USA",
-  "Canada",
-  "UK",
-  "Germany",
-  "France",
-  "Japan",
-  "Australia",
-  "Brazil",
-];
 
 const FiltersPanel: React.FC<FiltersPanelProps> = ({
   filters,
   onFiltersChange,
   onReset,
 }) => {
+  const [localFilters, setLocalFilters] = useState<Filters>(filters);
+  const [validationErrors, setValidationErrors] = useState<
+    Record<string, string>
+  >({});
+
+  useEffect(() => {
+    setLocalFilters(filters);
+  }, [filters]);
+
+  const debouncedFiltersChange = useCallback(
+    debounce((newFilters: Filters) => {
+      const validation = validateFilters(newFilters);
+      if (validation.isValid) {
+        setValidationErrors({});
+        onFiltersChange(newFilters);
+      } else {
+        setValidationErrors({
+          general: validation.message || "Ошибка валидации",
+        });
+      }
+    }, UI_CONSTANTS.DEBOUNCE_DELAY),
+    [onFiltersChange]
+  );
+
   const handleInputChange = (
     field: keyof Filters,
     value: string | string[]
   ) => {
-    onFiltersChange({ ...filters, [field]: value });
+    const newFilters = { ...localFilters, [field]: value };
+
+    setLocalFilters(newFilters);
+
+    if (validationErrors[field]) {
+      setValidationErrors((prev) => ({ ...prev, [field]: "" }));
+    }
+
+    debouncedFiltersChange(newFilters);
   };
 
   const handleCountryChange = (country: string) => {
-    const newCountries = filters.country.includes(country)
-      ? filters.country.filter((c) => c !== country)
-      : [...filters.country, country];
+    const newCountries = localFilters.country.includes(country)
+      ? localFilters.country.filter((c) => c !== country)
+      : [...localFilters.country, country];
     handleInputChange("country", newCountries);
   };
 
   return (
-    <PanelContainer>
-      <Header>
-        <Title>
-          <Filter />
-          Фильтры
-        </Title>
-        <ResetButton onClick={onReset}>
-          <X />
-          Сбросить
-        </ResetButton>
-      </Header>
+    <S.PanelContainer>
+      <S.Header>
+        <S.Title>
+          <Filter size={20} /> Фильтры
+        </S.Title>
+        <S.ResetButtonStyled onClick={onReset}>
+          <X size={16} /> Сбросить
+        </S.ResetButtonStyled>
+      </S.Header>
 
-      <Grid>
-        <div>
-          <Label>Поиск по имени</Label>
-          <InputContainer>
-            <InputIcon>
+      {validationErrors.general && (
+        <S.InputError style={{ marginBottom: "16px", textAlign: "center" }}>
+          {validationErrors.general}
+        </S.InputError>
+      )}
+
+      <S.Grid>
+        <S.InputGroup>
+          <S.Label htmlFor="name-filter">Поиск по имени</S.Label>
+          <S.InputContainer>
+            <S.InputIcon>
               <Search />
-            </InputIcon>
-            <StyledInput
+            </S.InputIcon>
+            <S.StyledInput
+              id="name-filter"
               type="text"
-              value={filters.name}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                handleInputChange("name", e.target.value)
-              }
+              value={localFilters.name}
+              onChange={(e) => handleInputChange("name", e.target.value)}
               placeholder="Введите имя"
             />
-          </InputContainer>
-        </div>
+          </S.InputContainer>
+          {validationErrors.name && (
+            <S.InputError>{validationErrors.name}</S.InputError>
+          )}
+        </S.InputGroup>
 
-        <div>
-          <Label>Поиск по email</Label>
-          <InputContainer>
-            <InputIcon>
+        <S.InputGroup>
+          <S.Label htmlFor="email-filter">Поиск по email</S.Label>
+          <S.InputContainer>
+            <S.InputIcon>
               <Search />
-            </InputIcon>
-            <StyledInput
+            </S.InputIcon>
+            <S.StyledInput
+              id="email-filter"
               type="text"
-              value={filters.email}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                handleInputChange("email", e.target.value)
-              }
+              value={localFilters.email}
+              onChange={(e) => handleInputChange("email", e.target.value)}
               placeholder="Введите email"
             />
-          </InputContainer>
-        </div>
+          </S.InputContainer>
+          {validationErrors.email && (
+            <S.InputError>{validationErrors.email}</S.InputError>
+          )}
+        </S.InputGroup>
 
-        <div>
-          <Label>Дата регистрации от</Label>
-          <InputContainer>
-            <InputIcon>
+        <S.InputGroup>
+          <S.Label htmlFor="date-from">Дата регистрации от</S.Label>
+          <S.InputContainer>
+            <S.InputIcon>
               <Calendar />
-            </InputIcon>
-            <StyledInput
+            </S.InputIcon>
+            <S.StyledInput
+              id="date-from"
               type="date"
-              value={filters.registeredFrom}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              value={localFilters.registeredFrom}
+              onChange={(e) =>
                 handleInputChange("registeredFrom", e.target.value)
               }
             />
-          </InputContainer>
-        </div>
+          </S.InputContainer>
+        </S.InputGroup>
 
-        <div>
-          <Label>Дата регистрации до</Label>
-          <InputContainer>
-            <InputIcon>
+        <S.InputGroup>
+          <S.Label htmlFor="date-to">Дата регистрации до</S.Label>
+          <S.InputContainer>
+            <S.InputIcon>
               <Calendar />
-            </InputIcon>
-            <StyledInput
+            </S.InputIcon>
+            <S.StyledInput
+              id="date-to"
               type="date"
-              value={filters.registeredTo}
-              onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+              value={localFilters.registeredTo}
+              onChange={(e) =>
                 handleInputChange("registeredTo", e.target.value)
               }
             />
-          </InputContainer>
-        </div>
-      </Grid>
+          </S.InputContainer>
+        </S.InputGroup>
 
-      <CountriesContainer>
-        <Label>Страны</Label>
-        <CountriesButtonsWrapper>
-          {MOCK_COUNTRIES.map((country) => (
-            <CountryButton
-              key={country}
-              onClick={() => handleCountryChange(country)}
-              $isActive={filters.country.includes(country)}
-            >
-              {country}
-            </CountryButton>
-          ))}
-        </CountriesButtonsWrapper>
-      </CountriesContainer>
-    </PanelContainer>
+        <S.CountriesContainer>
+          <S.Label>Страны</S.Label>
+          <S.CountriesButtonsWrapper>
+            {MOCK_COUNTRIES.map((country) => (
+              <S.CountryButtonStyled
+                key={country}
+                onClick={() => handleCountryChange(country)}
+                $isActive={localFilters.country.includes(country)}
+              >
+                {country}
+              </S.CountryButtonStyled>
+            ))}
+          </S.CountriesButtonsWrapper>
+        </S.CountriesContainer>
+      </S.Grid>
+    </S.PanelContainer>
   );
 };
 
 export default FiltersPanel;
-
-const PanelContainer = styled.div`
-  background-color: #fff;
-  padding: 1.5rem;
-  border-radius: 0.5rem;
-  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
-  border: 1px solid #e5e7eb;
-  margin-bottom: 1.5rem;
-`;
-
-const Header = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-`;
-
-const Title = styled.h2`
-  display: flex;
-  align-items: center;
-  font-size: 1.125rem;
-  font-weight: 600;
-  color: #111827;
-
-  & > svg {
-    width: 1.25rem;
-    height: 1.25rem;
-    margin-right: 0.5rem;
-  }
-`;
-
-const ResetButton = styled.button`
-  display: flex;
-  align-items: center;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  background-color: #f3f4f6;
-  color: #374151;
-  border-radius: 0.375rem;
-  border: none;
-  cursor: pointer;
-  transition: background-color 150ms;
-
-  &:hover {
-    background-color: #e5e7eb;
-  }
-
-  & > svg {
-    width: 1rem;
-    height: 1rem;
-    margin-right: 0.25rem;
-  }
-`;
-
-const Grid = styled.div`
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 1rem;
-
-  @media (min-width: 768px) {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  @media (min-width: 1024px) {
-    grid-template-columns: repeat(4, 1fr);
-  }
-`;
-
-const Label = styled.label`
-  display: block;
-  font-size: 0.875rem;
-  font-weight: 500;
-  color: #374151;
-  margin-bottom: 0.5rem;
-`;
-
-const InputContainer = styled.div`
-  position: relative;
-`;
-
-const InputIcon = styled.div`
-  position: absolute;
-  left: 0.75rem;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #9ca3af;
-  pointer-events: none;
-
-  & > svg {
-    width: 1rem;
-    height: 1rem;
-  }
-`;
-
-const StyledInput = styled.input`
-  width: 70%;
-  padding: 0.5rem 0.75rem;
-  padding-left: 2.5rem;
-  border: 1px solid #d1d5db;
-  border-radius: 0.375rem;
-
-  &:focus {
-    outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 1px #3b82f6;
-  }
-`;
-
-const CountriesContainer = styled.div`
-  margin-top: 1rem;
-`;
-
-const CountriesButtonsWrapper = styled.div`
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-`;
-
-const CountryButton = styled.button<{ $isActive: boolean }>`
-  padding: 0.25rem 0.75rem;
-  border-radius: 9999px;
-  font-size: 0.875rem;
-  border: none;
-  cursor: pointer;
-  transition: background-color 150ms, color 150ms;
-
-  background-color: ${({ $isActive }) => ($isActive ? "#3b82f6" : "#f3f4f6")};
-  color: ${({ $isActive }) => ($isActive ? "#fff" : "#374151")};
-
-  &:hover {
-    background-color: ${({ $isActive }) => !$isActive && "#e5e7eb"};
-  }
-`;

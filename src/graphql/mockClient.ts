@@ -1,24 +1,11 @@
-import { ApolloClient, InMemoryCache } from "@apollo/client";
-import { MockLink } from "@apollo/client/testing";
-import { GET_USERS } from "./client";
-import { User, Filters } from "../types";
-
-const MOCK_COUNTRIES = [
-  "USA",
-  "Canada",
-  "UK",
-  "Germany",
-  "France",
-  "Japan",
-  "Australia",
-  "Brazil",
-];
+import { Filters, User } from "../types";
+import { MOCK_COUNTRIES } from "../constants";
 
 const generateMockUsers = (
   offset: number = 0,
   limit: number = 20,
   filters: Filters
-): User[] => {
+): { users: User[]; nextId: number } => {
   const users: User[] = [];
   const names = [
     "John",
@@ -44,8 +31,9 @@ const generateMockUsers = (
   let id = offset;
 
   while (count < limit && id < 1000) {
-    const name =
-      names[id % names.length] + ` ${Math.floor(id / names.length) + 1}`;
+    const name = `${names[id % names.length]} ${
+      Math.floor(id / names.length) + 1
+    }`;
     const email = `${name.toLowerCase().replace(" ", ".")}@${
       domains[id % domains.length]
     }`;
@@ -57,71 +45,42 @@ const generateMockUsers = (
     const user = { id: id.toString(), name, email, country, registeredAt };
 
     let matches = true;
-
     if (
       filters.name &&
       !user.name.toLowerCase().includes(filters.name.toLowerCase())
-    ) {
+    )
       matches = false;
-    }
-
     if (
       filters.email &&
       !user.email.toLowerCase().includes(filters.email.toLowerCase())
-    ) {
+    )
       matches = false;
-    }
-
-    if (filters.country.length > 0 && !filters.country.includes(user.country)) {
+    if (filters.country.length > 0 && !filters.country.includes(user.country))
       matches = false;
-    }
-
-    if (filters.registeredFrom && user.registeredAt < filters.registeredFrom) {
+    if (filters.registeredFrom && user.registeredAt < filters.registeredFrom)
       matches = false;
-    }
-
-    if (filters.registeredTo && user.registeredAt > filters.registeredTo) {
+    if (filters.registeredTo && user.registeredAt > filters.registeredTo)
       matches = false;
-    }
 
     if (matches) {
       users.push(user);
       count++;
     }
-
     id++;
   }
-
-  return users;
+  return { users, nextId: id };
 };
 
-const mocks = [
-  {
-    request: {
-      query: GET_USERS,
-    },
-    newData: () => {
-      const filters: Filters = {
-        name: "",
-        email: "",
-        country: [],
-        registeredFrom: "",
-        registeredTo: "",
-      };
-      const users = generateMockUsers(0, 20, filters);
+export const mockGraphQLClient = {
+  query: async (
+    filters: Filters,
+    offset: number = 0,
+    limit: number = 20
+  ): Promise<{ users: User[]; hasMore: boolean; nextOffset: number }> => {
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    const { users, nextId } = generateMockUsers(offset, limit, filters);
 
-      return {
-        data: {
-          users,
-        },
-      };
-    },
+    const hasMore = users.length === limit && nextId < 1000;
+    return { users, hasMore, nextOffset: nextId };
   },
-];
-
-const mockLink = new MockLink(mocks, true);
-
-export const mockApolloClient = new ApolloClient({
-  link: mockLink,
-  cache: new InMemoryCache(),
-});
+};
